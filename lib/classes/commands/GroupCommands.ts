@@ -15,6 +15,7 @@ import {GroupMember} from '../GroupMember';
 import {FilterResponse} from '../../enums/FilterResponse';
 import * as LLSD from '@caspertech/llsd';
 import {GroupInviteEvent} from '../..';
+import {EjectGroupMemberRequestMessage} from '../messages/EjectGroupMemberRequest';
 
 export class GroupCommands extends CommandsBase
 {
@@ -290,5 +291,50 @@ export class GroupCommands extends CommandsBase
                 }
             });
         });
+    }
+
+    async ejectFromGroupBulk(groupID: UUID | string, sendTo: UUID[] | string[]): Promise<void>
+    {
+        if (typeof groupID === 'string')
+        {
+            groupID = new UUID(groupID);
+        }
+
+        const msg: EjectGroupMemberRequestMessage = new EjectGroupMemberRequestMessage();
+
+        msg.AgentData = {
+            AgentID: this.agent.agentID,
+            SessionID: this.circuit.sessionID
+        };
+        msg.GroupData = {
+            GroupID: groupID
+        };
+        msg.EjectData = [];
+
+        for (let ejecteeID of sendTo)
+        {
+            if (typeof ejecteeID === 'string')
+            {
+                ejecteeID = new UUID(ejecteeID);
+            }
+            msg.EjectData.push({
+                EjecteeID: ejecteeID
+            });
+        };
+
+        const sequenceNo = this.circuit.sendMessage(msg, PacketFlags.Reliable);
+        return await this.circuit.waitForAck(sequenceNo, 10000);
+    }
+
+    async ejectFromGroup(groupID: UUID | string, ejecteeID: UUID | string): Promise<void>
+    {
+        if (typeof ejecteeID === 'string')
+        {
+            ejecteeID = new UUID(ejecteeID);
+        }
+
+        const sendTo: UUID[] = [ejecteeID];
+
+        return await this.ejectFromGroupBulk(groupID, sendTo);
     }
 }
